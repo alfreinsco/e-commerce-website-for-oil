@@ -1,10 +1,19 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { Users, Search, Mail, Phone, Calendar } from 'lucide-react'
+import { Users, Search, Loader2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import { getAdminToken, isApiConfigured, customersGet } from '@/lib/api'
 
 interface Customer {
   id: string
@@ -20,31 +29,74 @@ interface Customer {
 export default function AdminCustomersPage() {
   const [customers, setCustomers] = useState<Customer[]>([])
   const [searchTerm, setSearchTerm] = useState('')
+  const [loading, setLoading] = useState(true)
 
-  // Load customers from localStorage
   useEffect(() => {
-    const storedUsers = localStorage.getItem('users')
-    if (storedUsers) {
-      try {
-        const parsed = JSON.parse(storedUsers)
-        // Filter only customers (not admins)
+    if (isApiConfigured() && getAdminToken()) {
+      setLoading(true)
+      customersGet(getAdminToken())
+        .then((list) => {
+          setCustomers(
+            list.map((c) => ({
+              id: c.id,
+              email: c.email,
+              fullName: c.fullName,
+              phone: c.phone ?? undefined,
+              role: 'customer' as const,
+              createdAt: c.createdAt ?? '',
+              totalOrders: c.totalOrders,
+              totalSpent: c.totalSpent,
+            }))
+          )
+        })
+        .catch(() => {
+          try {
+            const stored = localStorage.getItem('users')
+            if (stored) {
+              const parsed = JSON.parse(stored)
+              const customerList: Customer[] = parsed
+                .filter((u: { role?: string }) => !u.role || u.role === 'customer')
+                .map((u: { id: string; email: string; fullName?: string; phone?: string; createdAt?: string }) => ({
+                  id: String(u.id),
+                  email: u.email,
+                  fullName: u.fullName ?? '',
+                  phone: u.phone ?? undefined,
+                  role: 'customer' as const,
+                  createdAt: u.createdAt ?? '',
+                  totalOrders: 0,
+                  totalSpent: 0,
+                }))
+              setCustomers(customerList)
+            }
+          } catch {
+            // ignore
+          }
+        })
+        .finally(() => setLoading(false))
+      return
+    }
+    try {
+      const stored = localStorage.getItem('users')
+      if (stored) {
+        const parsed = JSON.parse(stored)
         const customerList: Customer[] = parsed
-          .filter((user: any) => !user.role || user.role === 'customer')
-          .map((user: any) => ({
-            id: user.id,
-            email: user.email,
-            fullName: user.fullName,
-            phone: user.phone || '',
+          .filter((u: { role?: string }) => !u.role || u.role === 'customer')
+          .map((u: { id: string; email: string; fullName?: string; phone?: string; createdAt?: string }) => ({
+            id: String(u.id),
+            email: u.email,
+            fullName: u.fullName ?? '',
+            phone: u.phone ?? undefined,
             role: 'customer' as const,
-            createdAt: user.createdAt,
-            totalOrders: Math.floor(Math.random() * 10), // Mock data
-            totalSpent: Math.floor(Math.random() * 1000000), // Mock data
+            createdAt: u.createdAt ?? '',
+            totalOrders: 0,
+            totalSpent: 0,
           }))
         setCustomers(customerList)
-      } catch (error) {
-        console.error('Failed to parse stored users:', error)
       }
+    } catch (error) {
+      console.error('Failed to parse stored users:', error)
     }
+    setLoading(false)
   }, [])
 
   const filteredCustomers = customers.filter((customer) =>
@@ -55,6 +107,14 @@ export default function AdminCustomersPage() {
 
   const formatPrice = (price: number) => {
     return `Rp ${price.toLocaleString('id-ID')}`
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[300px]">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    )
   }
 
   return (
@@ -105,7 +165,7 @@ export default function AdminCustomersPage() {
       </div>
 
       {/* Search */}
-      <div className="relative">
+      <div className="relative max-w-sm">
         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
         <Input
           placeholder="Cari pelanggan..."
@@ -115,65 +175,63 @@ export default function AdminCustomersPage() {
         />
       </div>
 
-      {/* Customers List */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filteredCustomers.map((customer) => (
-          <Card key={customer.id} className="border-0 shadow-sm">
-            <CardHeader>
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <CardTitle className="text-lg">{customer.fullName}</CardTitle>
-                  <CardDescription className="mt-1 flex items-center gap-1">
-                    <Mail className="w-3 h-3" />
-                    {customer.email}
-                  </CardDescription>
-                </div>
-                {(customer.totalOrders || 0) > 0 && (
-                  <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                    Aktif
-                  </Badge>
-                )}
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {customer.phone && (
-                  <div className="flex items-center gap-2 text-sm">
-                    <Phone className="w-4 h-4 text-muted-foreground" />
-                    <span>{customer.phone}</span>
-                  </div>
-                )}
-                <div className="flex items-center gap-2 text-sm">
-                  <Calendar className="w-4 h-4 text-muted-foreground" />
-                  <span>Bergabung {new Date(customer.createdAt).toLocaleDateString('id-ID')}</span>
-                </div>
-                <div className="pt-2 border-t space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Total Pesanan</span>
-                    <span className="font-medium">{customer.totalOrders || 0}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Total Belanja</span>
-                    <span className="font-medium text-primary">{formatPrice(customer.totalSpent || 0)}</span>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      {filteredCustomers.length === 0 && (
-        <Card className="text-center py-12">
-          <CardContent>
-            <Users className="w-16 h-16 text-muted-foreground/30 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold mb-2">Tidak ada pelanggan</h3>
-            <p className="text-muted-foreground">
-              {searchTerm ? 'Tidak ada pelanggan yang sesuai dengan pencarian' : 'Belum ada pelanggan yang terdaftar'}
-            </p>
-          </CardContent>
-        </Card>
-      )}
+      {/* Customers Table */}
+      <Card>
+        <CardContent className="p-0">
+          {filteredCustomers.length === 0 ? (
+            <div className="text-center py-12 px-4">
+              <Users className="w-16 h-16 text-muted-foreground/30 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold mb-2">Tidak ada pelanggan</h3>
+              <p className="text-muted-foreground">
+                {searchTerm
+                  ? 'Tidak ada pelanggan yang sesuai dengan pencarian'
+                  : 'Belum ada pelanggan yang terdaftar'}
+              </p>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Nama</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Telepon</TableHead>
+                  <TableHead>Bergabung</TableHead>
+                  <TableHead className="text-center">Total Pesanan</TableHead>
+                  <TableHead className="text-right">Total Belanja</TableHead>
+                  <TableHead className="w-[100px]">Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredCustomers.map((customer) => (
+                  <TableRow key={customer.id}>
+                    <TableCell className="font-medium">{customer.fullName}</TableCell>
+                    <TableCell className="text-muted-foreground">{customer.email}</TableCell>
+                    <TableCell>{customer.phone || '–'}</TableCell>
+                    <TableCell>
+                      {customer.createdAt
+                        ? new Date(customer.createdAt).toLocaleDateString('id-ID')
+                        : '–'}
+                    </TableCell>
+                    <TableCell className="text-center">{customer.totalOrders ?? 0}</TableCell>
+                    <TableCell className="text-right font-medium text-primary">
+                      {formatPrice(customer.totalSpent ?? 0)}
+                    </TableCell>
+                    <TableCell>
+                      {(customer.totalOrders ?? 0) > 0 ? (
+                        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                          Aktif
+                        </Badge>
+                      ) : (
+                        <span className="text-muted-foreground text-sm">–</span>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }

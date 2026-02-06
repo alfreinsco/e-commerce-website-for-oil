@@ -428,3 +428,25 @@ export async function appUpdateSettings(
   })
   return res.data
 }
+
+// --- Admin Customers ---
+export interface ApiCustomer {
+  id: string
+  email: string
+  fullName: string
+  phone: string | null
+  role: 'customer'
+  createdAt: string | null
+  totalOrders: number
+  totalSpent: number
+}
+
+export async function customersGet(
+  token: string | null,
+  search?: string
+): Promise<ApiCustomer[]> {
+  if (!token) return []
+  const q = search?.trim() ? `?search=${encodeURIComponent(search.trim())}` : ''
+  const res = await authRequest<{ data: ApiCustomer[] }>(`/admin/customers${q}`, token)
+  return res.data ?? []
+}
