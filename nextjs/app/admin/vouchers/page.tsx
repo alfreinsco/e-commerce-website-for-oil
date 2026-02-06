@@ -22,8 +22,17 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
-import { Ticket, Plus, Edit2, Trash2, Search } from 'lucide-react'
+import { Ticket, Plus, Edit2, Trash2, Search, Loader2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import { getAdminToken, isApiConfigured, vouchersGet, voucherCreate, voucherUpdate, voucherDelete } from '@/lib/api'
 
 export type VoucherType = 'percentage' | 'fixed' | 'free_shipping'
 
@@ -50,12 +59,42 @@ const DEFAULT_VOUCHERS: Voucher[] = [
 
 const STORAGE_KEY = 'admin_vouchers'
 
+function apiToVoucher(a: {
+  id: string
+  code: string
+  type: string
+  discount: number
+  minPurchase: number
+  description?: string | null
+  validFrom?: string | null
+  validTo?: string | null
+  usageLimit?: number | null
+  usedCount: number
+  isActive: boolean
+}): Voucher {
+  return {
+    id: a.id,
+    code: a.code,
+    type: a.type as VoucherType,
+    discount: a.discount,
+    minPurchase: a.minPurchase,
+    description: a.description ?? undefined,
+    validFrom: a.validFrom ?? undefined,
+    validTo: a.validTo ?? undefined,
+    usageLimit: a.usageLimit ?? undefined,
+    usedCount: a.usedCount,
+    isActive: a.isActive,
+  }
+}
+
 export default function AdminVouchersPage() {
   const [vouchers, setVouchers] = useState<Voucher[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [filterType, setFilterType] = useState<string>('all')
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingVoucher, setEditingVoucher] = useState<Voucher | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
   const [formData, setFormData] = useState({
     code: '',
     type: 'percentage' as VoucherType,
@@ -69,6 +108,22 @@ export default function AdminVouchersPage() {
   })
 
   useEffect(() => {
+    if (isApiConfigured() && getAdminToken()) {
+      setLoading(true)
+      vouchersGet(getAdminToken())
+        .then((list) => setVouchers(list.map(apiToVoucher)))
+        .catch(() => {
+          try {
+            const stored = localStorage.getItem(STORAGE_KEY)
+            if (stored) setVouchers(JSON.parse(stored))
+            else setVouchers(DEFAULT_VOUCHERS)
+          } catch {
+            setVouchers(DEFAULT_VOUCHERS)
+          }
+        })
+        .finally(() => setLoading(false))
+      return
+    }
     const stored = localStorage.getItem(STORAGE_KEY)
     if (stored) {
       try {
@@ -81,10 +136,11 @@ export default function AdminVouchersPage() {
       setVouchers(DEFAULT_VOUCHERS)
       localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_VOUCHERS))
     }
+    setLoading(false)
   }, [])
 
   useEffect(() => {
-    if (vouchers.length > 0) {
+    if (vouchers.length > 0 && (!isApiConfigured() || !getAdminToken())) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(vouchers))
     }
   }, [vouchers])
@@ -121,7 +177,7 @@ export default function AdminVouchersPage() {
     setIsDialogOpen(true)
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const code = formData.code.trim().toUpperCase()
     if (!code) return
     const minPurchase = parseInt(formData.minPurchase, 10) || 0
@@ -129,6 +185,58 @@ export default function AdminVouchersPage() {
     const usageLimit = formData.usageLimit ? parseInt(formData.usageLimit, 10) : undefined
     const validFrom = formData.validFrom || undefined
     const validTo = formData.validTo || undefined
+
+    if (isApiConfigured() && getAdminToken()) {
+      setSaving(true)
+      try {
+        if (editingVoucher) {
+          const updated = await voucherUpdate(getAdminToken(), editingVoucher.id, {
+            type: formData.type,
+            discount,
+            minPurchase,
+            description: formData.description || undefined,
+            validFrom,
+            validTo,
+            usageLimit,
+            isActive: formData.isActive,
+          })
+          setVouchers((prev) =>
+            prev.map((v) => (v.id === editingVoucher.id ? apiToVoucher(updated) : v))
+          )
+        } else {
+          const created = await voucherCreate(getAdminToken(), {
+            code,
+            type: formData.type,
+            discount,
+            minPurchase,
+            description: formData.description || undefined,
+            validFrom,
+            validTo,
+            usageLimit,
+            isActive: formData.isActive,
+          })
+          setVouchers((prev) => [...prev, apiToVoucher(created)])
+        }
+        setIsDialogOpen(false)
+        setEditingVoucher(null)
+        setFormData({
+          code: '',
+          type: 'percentage',
+          discount: '',
+          minPurchase: '',
+          description: '',
+          validFrom: '',
+          validTo: '',
+          usageLimit: '',
+          isActive: true,
+        })
+      } catch (e) {
+        alert(e instanceof Error ? e.message : 'Gagal menyimpan voucher.')
+      } finally {
+        setSaving(false)
+      }
+      return
+    }
 
     if (editingVoucher) {
       setVouchers((prev) =>
@@ -180,13 +288,32 @@ export default function AdminVouchersPage() {
     })
   }
 
-  const handleDelete = (id: string) => {
-    if (confirm('Hapus voucher ini? Pelanggan tidak akan bisa memakai kode ini lagi.')) {
-      setVouchers((prev) => prev.filter((v) => v.id !== id))
+  const handleDelete = async (id: string) => {
+    if (!confirm('Hapus voucher ini? Pelanggan tidak akan bisa memakai kode ini lagi.')) return
+    if (isApiConfigured() && getAdminToken()) {
+      try {
+        await voucherDelete(getAdminToken(), id)
+        setVouchers((prev) => prev.filter((v) => v.id !== id))
+      } catch (e) {
+        alert(e instanceof Error ? e.message : 'Gagal menghapus voucher.')
+      }
+      return
     }
+    setVouchers((prev) => prev.filter((v) => v.id !== id))
   }
 
-  const handleToggleActive = (v: Voucher) => {
+  const handleToggleActive = async (v: Voucher) => {
+    if (isApiConfigured() && getAdminToken()) {
+      try {
+        const updated = await voucherUpdate(getAdminToken(), v.id, { isActive: !v.isActive })
+        setVouchers((prev) =>
+          prev.map((x) => (x.id === v.id ? apiToVoucher(updated) : x))
+        )
+      } catch (e) {
+        alert(e instanceof Error ? e.message : 'Gagal mengubah status voucher.')
+      }
+      return
+    }
     setVouchers((prev) =>
       prev.map((x) => (x.id === v.id ? { ...x, isActive: !x.isActive } : x))
     )
@@ -205,6 +332,14 @@ export default function AdminVouchersPage() {
     if (t === 'percentage') return 'Diskon %'
     if (t === 'fixed') return 'Diskon nominal'
     return 'Gratis ongkir'
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[300px]">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    )
   }
 
   return (
@@ -328,11 +463,21 @@ export default function AdminVouchersPage() {
                   onClick={handleSave}
                   className="flex-1"
                   disabled={
+                    saving ||
                     !formData.code.trim() ||
                     (formData.type !== 'free_shipping' && (formData.discount === '' || Number(formData.discount) < 0))
                   }
                 >
-                  {editingVoucher ? 'Simpan' : 'Tambah'}
+                  {saving ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Menyimpan...
+                    </>
+                  ) : editingVoucher ? (
+                    'Simpan'
+                  ) : (
+                    'Tambah'
+                  )}
                 </Button>
                 <Button
                   variant="outline"
@@ -373,94 +518,119 @@ export default function AdminVouchersPage() {
         </Select>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {filtered.map((v) => (
-          <Card key={v.id} className="border-0 shadow-sm">
-            <CardHeader className="pb-2">
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex items-center gap-2 min-w-0">
-                  <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-amber-100 text-amber-700">
-                    <Ticket className="w-5 h-5" />
-                  </div>
-                  <div className="min-w-0">
-                    <CardTitle className="text-lg font-mono truncate">{v.code}</CardTitle>
-                    <CardDescription className="text-xs">{typeLabel(v.type)}</CardDescription>
-                  </div>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="shrink-0"
-                  onClick={() => handleToggleActive(v)}
-                >
-                  {v.isActive ? 'Nonaktifkan' : 'Aktifkan'}
-                </Button>
-              </div>
-              <div className="flex items-center gap-1 mt-1">
-                <Badge variant={v.isActive ? 'default' : 'secondary'}>
-                  {v.isActive ? 'Aktif' : 'Nonaktif'}
-                </Badge>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {v.type === 'percentage' && (
-                <p className="text-sm font-medium text-primary">{v.discount}% diskon</p>
-              )}
-              {v.type === 'fixed' && (
-                <p className="text-sm font-medium text-primary">{formatPrice(v.discount)} diskon</p>
-              )}
-              {v.type === 'free_shipping' && (
-                <p className="text-sm font-medium text-primary">Gratis ongkos kirim</p>
-              )}
-              <p className="text-xs text-muted-foreground">
-                Min. belanja {formatPrice(v.minPurchase)}
+      <Card>
+        <CardContent className="p-0">
+          {filtered.length === 0 ? (
+            <div className="text-center py-12 px-4">
+              <Ticket className="w-16 h-16 text-muted-foreground/30 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold mb-2">Tidak ada voucher</h3>
+              <p className="text-muted-foreground mb-4">
+                {searchTerm || filterType !== 'all'
+                  ? 'Tidak ada voucher yang sesuai filter.'
+                  : 'Belum ada voucher. Tambah voucher agar pelanggan bisa pakai di keranjang.'}
               </p>
-              {v.description && (
-                <p className="text-xs text-muted-foreground line-clamp-2">{v.description}</p>
-              )}
-              {(v.usageLimit != null && v.usageLimit > 0) && (
-                <p className="text-xs text-muted-foreground">
-                  Dipakai {v.usedCount} / {v.usageLimit}
-                </p>
-              )}
-              <div className="flex gap-2 pt-2">
-                <Button variant="outline" size="sm" className="flex-1" onClick={() => handleEdit(v)}>
-                  <Edit2 className="w-4 h-4 mr-1" />
-                  Edit
+              {!searchTerm && filterType === 'all' && (
+                <Button onClick={handleAdd}>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Tambah Voucher
                 </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="text-destructive hover:text-destructive"
-                  onClick={() => handleDelete(v.id)}
-                >
-                  <Trash2 className="w-4 h-4" />
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      {filtered.length === 0 && (
-        <Card className="text-center py-12">
-          <CardContent>
-            <Ticket className="w-16 h-16 text-muted-foreground/30 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold mb-2">Tidak ada voucher</h3>
-            <p className="text-muted-foreground mb-4">
-              {searchTerm || filterType !== 'all'
-                ? 'Tidak ada voucher yang sesuai filter.'
-                : 'Belum ada voucher. Tambah voucher agar pelanggan bisa pakai di keranjang.'}
-            </p>
-            {!searchTerm && filterType === 'all' && (
-              <Button onClick={handleAdd}>
-                <Plus className="w-4 h-4 mr-2" />
-                Tambah Voucher
-              </Button>
-            )}
-          </CardContent>
-        </Card>
-      )}
+              )}
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Kode</TableHead>
+                  <TableHead>Tipe</TableHead>
+                  <TableHead>Diskon</TableHead>
+                  <TableHead>Min. Belanja</TableHead>
+                  <TableHead>Deskripsi</TableHead>
+                  <TableHead>Berlaku</TableHead>
+                  <TableHead className="text-center">Pemakaian</TableHead>
+                  <TableHead className="w-[100px]">Status</TableHead>
+                  <TableHead className="w-[150px]">Aksi</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filtered.map((v) => (
+                  <TableRow key={v.id}>
+                    <TableCell className="font-mono font-medium">{v.code}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="text-xs">
+                        {typeLabel(v.type)}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {v.type === 'percentage' && (
+                        <span className="font-medium text-primary">{v.discount}%</span>
+                      )}
+                      {v.type === 'fixed' && (
+                        <span className="font-medium text-primary">{formatPrice(v.discount)}</span>
+                      )}
+                      {v.type === 'free_shipping' && (
+                        <span className="text-sm text-muted-foreground">Gratis ongkir</span>
+                      )}
+                    </TableCell>
+                    <TableCell>{formatPrice(v.minPurchase)}</TableCell>
+                    <TableCell className="max-w-[200px]">
+                      <span className="text-sm text-muted-foreground line-clamp-1">
+                        {v.description || '–'}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {v.validFrom && v.validTo ? (
+                        <div>
+                          <div>{new Date(v.validFrom).toLocaleDateString('id-ID')}</div>
+                          <div className="text-muted-foreground text-xs">
+                            s/d {new Date(v.validTo).toLocaleDateString('id-ID')}
+                          </div>
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground">Selamanya</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-center text-sm">
+                      {v.usageLimit != null && v.usageLimit > 0 ? (
+                        <span>
+                          {v.usedCount} / {v.usageLimit}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">–</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Switch
+                        checked={v.isActive}
+                        onCheckedChange={() => handleToggleActive(v)}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleEdit(v)}
+                          className="h-8 px-2"
+                        >
+                          <Edit2 className="w-3 h-3" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 px-2 text-destructive hover:text-destructive"
+                          onClick={() => handleDelete(v.id)}
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }

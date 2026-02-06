@@ -450,3 +450,82 @@ export async function customersGet(
   const res = await authRequest<{ data: ApiCustomer[] }>(`/admin/customers${q}`, token)
   return res.data ?? []
 }
+
+// --- Admin Vouchers ---
+export type ApiVoucherType = 'percentage' | 'fixed' | 'free_shipping'
+
+export interface ApiVoucher {
+  id: string
+  code: string
+  type: ApiVoucherType
+  discount: number
+  minPurchase: number
+  description: string | null
+  validFrom: string | null
+  validTo: string | null
+  usageLimit: number | null
+  usedCount: number
+  isActive: boolean
+}
+
+export async function vouchersGet(
+  token: string | null,
+  opts?: { search?: string; type?: string }
+): Promise<ApiVoucher[]> {
+  if (!token) return []
+  const params = new URLSearchParams()
+  if (opts?.search?.trim()) params.set('search', opts.search.trim())
+  if (opts?.type && opts.type !== 'all') params.set('type', opts.type)
+  const q = params.toString() ? `?${params.toString()}` : ''
+  const res = await authRequest<{ data: ApiVoucher[] }>(`/admin/vouchers${q}`, token)
+  return res.data ?? []
+}
+
+export async function voucherCreate(
+  token: string | null,
+  payload: {
+    code: string
+    type: ApiVoucherType
+    discount: number
+    minPurchase: number
+    description?: string
+    validFrom?: string
+    validTo?: string
+    usageLimit?: number
+    isActive?: boolean
+  }
+): Promise<ApiVoucher> {
+  if (!token) throw new Error('Token diperlukan')
+  const res = await authRequest<{ data: ApiVoucher }>('/admin/vouchers', token, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+  return res.data
+}
+
+export async function voucherUpdate(
+  token: string | null,
+  id: string,
+  payload: Partial<{
+    type: ApiVoucherType
+    discount: number
+    minPurchase: number
+    description: string
+    validFrom: string
+    validTo: string
+    usageLimit: number
+    isActive: boolean
+  }>
+): Promise<ApiVoucher> {
+  if (!token) throw new Error('Token diperlukan')
+  const res = await authRequest<{ data: ApiVoucher }>(`/admin/vouchers/${id}`, token, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+  return res.data
+}
+
+export async function voucherDelete(token: string | null, id: string): Promise<void> {
+  if (!token) throw new Error('Token diperlukan')
+  await authRequest(`/admin/vouchers/${id}`, token, { method: 'DELETE' })
+}
