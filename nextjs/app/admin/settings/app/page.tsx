@@ -1,28 +1,39 @@
-'use client'
+"use client";
 
-import { useState, useEffect, useCallback } from 'react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
-import { Switch } from '@/components/ui/switch'
-import { Separator } from '@/components/ui/separator'
-import { Save, Globe, Bell, Shield, AlertCircle, Loader2 } from 'lucide-react'
-import { Alert, AlertDescription } from '@/components/ui/alert'
-import { getAdminToken, isApiConfigured, appGetSettings, appUpdateSettings } from '@/lib/api'
+import { useState, useEffect, useCallback } from "react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
+import { Separator } from "@/components/ui/separator";
+import { Save, Globe, Bell, Shield, AlertCircle, Loader2 } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  getAdminToken,
+  isApiConfigured,
+  appGetSettings,
+  appUpdateSettings,
+} from "@/lib/api";
 
 const initialSettings = {
-  siteName: 'E-Commerce Lamahang',
-  siteDescription: 'Toko online minyak kayu putih premium dari Desa Lamahang',
-  siteTagline: 'Produk Alami untuk Kesehatan Keluarga',
-  contactEmail: 'info@lamahang.com',
-  contactPhone: '+62 812-3456-7890',
-  address: 'Desa Lamahang, Kec. Waplau, Kab. Buru, Maluku',
-  facebookUrl: '',
-  instagramUrl: '',
-  twitterUrl: '',
-  whatsappNumber: '',
+  siteName: "E-Commerce Lamahang",
+  siteDescription: "Toko online minyak kayu putih premium dari Desa Lamahang",
+  siteTagline: "Produk Alami untuk Kesehatan Keluarga",
+  contactEmail: "info@lamahang.com",
+  contactPhone: "+62 812-3456-7890",
+  address: "Desa Lamahang, Kec. Waplau, Kab. Buru, Maluku",
+  facebookUrl: "",
+  instagramUrl: "",
+  twitterUrl: "",
+  whatsappNumber: "",
   emailNotifications: true,
   orderNotifications: true,
   lowStockNotifications: true,
@@ -33,120 +44,151 @@ const initialSettings = {
   taxRate: 11,
   taxEnabled: true,
   maintenanceMode: false,
-  maintenanceMessage: 'Situs sedang dalam maintenance. Kami akan kembali segera.',
-  metaTitle: 'E-Commerce Lamahang - Minyak Kayu Putih Premium',
-  metaDescription: 'Toko online minyak kayu putih premium dari Desa Lamahang, Kecamatan Waplau, Kabupaten Buru, Maluku',
-  metaKeywords: 'minyak kayu putih, lamahang, produk alami, kesehatan',
-}
+  maintenanceMessage:
+    "Situs sedang dalam maintenance. Kami akan kembali segera.",
+  metaTitle: "E-Commerce Lamahang - Minyak Kayu Putih Premium",
+  metaDescription:
+    "Toko online minyak kayu putih premium dari Desa Lamahang, Kecamatan Waplau, Kabupaten Buru, Maluku",
+  metaKeywords: "minyak kayu putih, lamahang, produk alami, kesehatan",
+};
 
 export default function AppSettingsPage() {
-  const [settings, setSettings] = useState(initialSettings)
-  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
+  const [settings, setSettings] = useState(initialSettings);
+  const [message, setMessage] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
   const mergeFromApi = useCallback((data: Partial<typeof initialSettings>) => {
     setSettings((prev) => {
-      const next = { ...prev }
-      const keys = Object.keys(initialSettings) as (keyof typeof initialSettings)[]
+      const next = { ...prev };
+      const keys = Object.keys(
+        initialSettings,
+      ) as (keyof typeof initialSettings)[];
       keys.forEach((k) => {
         if (data[k] !== undefined) {
-          (next as Record<string, unknown>)[k] = data[k]
+          (next as Record<string, unknown>)[k] = data[k];
         }
-      })
-      return next
-    })
-  }, [])
+      });
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     if (isApiConfigured() && getAdminToken()) {
-      setLoading(true)
+      setLoading(true);
       appGetSettings(getAdminToken())
         .then(mergeFromApi)
         .catch(() => {
           try {
-            const stored = localStorage.getItem('admin_settings')
-            if (stored) mergeFromApi(JSON.parse(stored))
+            const stored = localStorage.getItem("admin_settings");
+            if (stored) mergeFromApi(JSON.parse(stored));
           } catch {
             // ignore
           }
         })
-        .finally(() => setLoading(false))
-      return
+        .finally(() => setLoading(false));
+      return;
     }
     try {
-      const stored = localStorage.getItem('admin_settings')
-      if (stored) setSettings((prev) => ({ ...prev, ...JSON.parse(stored) }))
+      const stored = localStorage.getItem("admin_settings");
+      if (stored) setSettings((prev) => ({ ...prev, ...JSON.parse(stored) }));
     } catch (error) {
-      console.error('Failed to parse stored settings:', error)
+      console.error("Failed to parse stored settings:", error);
     }
-    setLoading(false)
-  }, [mergeFromApi])
+    setLoading(false);
+  }, [mergeFromApi]);
 
   const handleChange = (key: string, value: unknown) => {
-    setSettings((prev) => ({ ...prev, [key]: value }))
-    setMessage(null)
-  }
+    setSettings((prev) => ({ ...prev, [key]: value }));
+    setMessage(null);
+  };
 
   const handleSave = async () => {
-    setMessage(null)
+    setMessage(null);
     if (isApiConfigured() && getAdminToken()) {
-      setSaving(true)
+      setSaving(true);
       try {
         const num = (v: number, fallback: number) =>
-          typeof v === 'number' && !Number.isNaN(v) ? v : fallback
+          typeof v === "number" && !Number.isNaN(v) ? v : fallback;
         const payload = {
           ...settings,
           freeShippingThreshold: num(settings.freeShippingThreshold, 100000),
           defaultShippingCost: num(settings.defaultShippingCost, 20000),
           taxRate: num(settings.taxRate, 11),
-        }
-        const updated = await appUpdateSettings(getAdminToken(), payload)
-        mergeFromApi(updated as Partial<typeof initialSettings>)
-        setMessage({ type: 'success', text: 'Pengaturan aplikasi berhasil disimpan!' })
-        setTimeout(() => setMessage(null), 3000)
+        };
+        const updated = await appUpdateSettings(getAdminToken(), payload);
+        mergeFromApi(updated as Partial<typeof initialSettings>);
+        setMessage({
+          type: "success",
+          text: "Pengaturan aplikasi berhasil disimpan!",
+        });
+        setTimeout(() => setMessage(null), 3000);
       } catch (e) {
         setMessage({
-          type: 'error',
-          text: e instanceof Error ? e.message : 'Gagal menyimpan pengaturan aplikasi.',
-        })
+          type: "error",
+          text:
+            e instanceof Error
+              ? e.message
+              : "Gagal menyimpan pengaturan aplikasi.",
+        });
       } finally {
-        setSaving(false)
+        setSaving(false);
       }
-      return
+      return;
     }
     try {
-      localStorage.setItem('admin_settings', JSON.stringify(settings))
-      setMessage({ type: 'success', text: 'Pengaturan aplikasi berhasil disimpan!' })
-      setTimeout(() => setMessage(null), 3000)
+      localStorage.setItem("admin_settings", JSON.stringify(settings));
+      setMessage({
+        type: "success",
+        text: "Pengaturan aplikasi berhasil disimpan!",
+      });
+      setTimeout(() => setMessage(null), 3000);
     } catch {
-      setMessage({ type: 'error', text: 'Gagal menyimpan ke penyimpanan lokal.' })
+      setMessage({
+        type: "error",
+        text: "Gagal menyimpan ke penyimpanan lokal.",
+      });
     }
-  }
+  };
 
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[300px]">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
-    )
+    );
   }
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold">Pengaturan Aplikasi</h1>
-        <p className="text-muted-foreground">Kelola konfigurasi dan pengaturan aplikasi</p>
+        <p className="text-muted-foreground">
+          Kelola konfigurasi dan pengaturan aplikasi
+        </p>
       </div>
 
       {message && (
-        <Alert className={message.type === 'success' ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}>
-          {message.type === 'success' ? (
+        <Alert
+          className={
+            message.type === "success"
+              ? "border-green-200 bg-green-50"
+              : "border-red-200 bg-red-50"
+          }
+        >
+          {message.type === "success" ? (
             <AlertCircle className="h-4 w-4 text-green-600" />
           ) : (
             <AlertCircle className="h-4 w-4 text-red-600" />
           )}
-          <AlertDescription className={message.type === 'success' ? 'text-green-800' : 'text-red-800'}>
+          <AlertDescription
+            className={
+              message.type === "success" ? "text-green-800" : "text-red-800"
+            }
+          >
             {message.text}
           </AlertDescription>
         </Alert>
@@ -175,7 +217,9 @@ export default function AppSettingsPage() {
             <Globe className="w-5 h-5" />
             Pengaturan Umum
           </CardTitle>
-          <CardDescription>Informasi dasar tentang aplikasi dan toko</CardDescription>
+          <CardDescription>
+            Informasi dasar tentang aplikasi dan toko
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
@@ -183,7 +227,7 @@ export default function AppSettingsPage() {
             <Input
               id="siteName"
               value={settings.siteName}
-              onChange={(e) => handleChange('siteName', e.target.value)}
+              onChange={(e) => handleChange("siteName", e.target.value)}
             />
           </div>
           <div className="space-y-2">
@@ -191,7 +235,7 @@ export default function AppSettingsPage() {
             <Input
               id="siteTagline"
               value={settings.siteTagline}
-              onChange={(e) => handleChange('siteTagline', e.target.value)}
+              onChange={(e) => handleChange("siteTagline", e.target.value)}
               placeholder="Slogan atau tagline toko"
             />
           </div>
@@ -200,7 +244,7 @@ export default function AppSettingsPage() {
             <Textarea
               id="siteDescription"
               value={settings.siteDescription}
-              onChange={(e) => handleChange('siteDescription', e.target.value)}
+              onChange={(e) => handleChange("siteDescription", e.target.value)}
               rows={3}
             />
           </div>
@@ -211,7 +255,7 @@ export default function AppSettingsPage() {
                 id="contactEmail"
                 type="email"
                 value={settings.contactEmail}
-                onChange={(e) => handleChange('contactEmail', e.target.value)}
+                onChange={(e) => handleChange("contactEmail", e.target.value)}
               />
             </div>
             <div className="space-y-2">
@@ -219,7 +263,7 @@ export default function AppSettingsPage() {
               <Input
                 id="contactPhone"
                 value={settings.contactPhone}
-                onChange={(e) => handleChange('contactPhone', e.target.value)}
+                onChange={(e) => handleChange("contactPhone", e.target.value)}
               />
             </div>
           </div>
@@ -228,7 +272,7 @@ export default function AppSettingsPage() {
             <Textarea
               id="address"
               value={settings.address}
-              onChange={(e) => handleChange('address', e.target.value)}
+              onChange={(e) => handleChange("address", e.target.value)}
               rows={2}
             />
           </div>
@@ -252,7 +296,7 @@ export default function AppSettingsPage() {
                 id="facebookUrl"
                 type="url"
                 value={settings.facebookUrl}
-                onChange={(e) => handleChange('facebookUrl', e.target.value)}
+                onChange={(e) => handleChange("facebookUrl", e.target.value)}
                 placeholder="https://facebook.com/lamahang"
               />
             </div>
@@ -262,7 +306,7 @@ export default function AppSettingsPage() {
                 id="instagramUrl"
                 type="url"
                 value={settings.instagramUrl}
-                onChange={(e) => handleChange('instagramUrl', e.target.value)}
+                onChange={(e) => handleChange("instagramUrl", e.target.value)}
                 placeholder="https://instagram.com/lamahang"
               />
             </div>
@@ -272,7 +316,7 @@ export default function AppSettingsPage() {
                 id="twitterUrl"
                 type="url"
                 value={settings.twitterUrl}
-                onChange={(e) => handleChange('twitterUrl', e.target.value)}
+                onChange={(e) => handleChange("twitterUrl", e.target.value)}
                 placeholder="https://twitter.com/lamahang"
               />
             </div>
@@ -281,7 +325,7 @@ export default function AppSettingsPage() {
               <Input
                 id="whatsappNumber"
                 value={settings.whatsappNumber}
-                onChange={(e) => handleChange('whatsappNumber', e.target.value)}
+                onChange={(e) => handleChange("whatsappNumber", e.target.value)}
                 placeholder="6281234567890"
               />
             </div>
@@ -296,7 +340,9 @@ export default function AppSettingsPage() {
             <Bell className="w-5 h-5" />
             Pengaturan Notifikasi
           </CardTitle>
-          <CardDescription>Kelola notifikasi yang ingin diterima</CardDescription>
+          <CardDescription>
+            Kelola notifikasi yang ingin diterima
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between">
@@ -308,7 +354,9 @@ export default function AppSettingsPage() {
             </div>
             <Switch
               checked={settings.emailNotifications}
-              onCheckedChange={(checked) => handleChange('emailNotifications', checked)}
+              onCheckedChange={(checked) =>
+                handleChange("emailNotifications", checked)
+              }
             />
           </div>
           <Separator />
@@ -321,7 +369,9 @@ export default function AppSettingsPage() {
             </div>
             <Switch
               checked={settings.orderNotifications}
-              onCheckedChange={(checked) => handleChange('orderNotifications', checked)}
+              onCheckedChange={(checked) =>
+                handleChange("orderNotifications", checked)
+              }
               disabled={!settings.emailNotifications}
             />
           </div>
@@ -335,7 +385,9 @@ export default function AppSettingsPage() {
             </div>
             <Switch
               checked={settings.lowStockNotifications}
-              onCheckedChange={(checked) => handleChange('lowStockNotifications', checked)}
+              onCheckedChange={(checked) =>
+                handleChange("lowStockNotifications", checked)
+              }
               disabled={!settings.emailNotifications}
             />
           </div>
@@ -349,7 +401,9 @@ export default function AppSettingsPage() {
             </div>
             <Switch
               checked={settings.paymentNotifications}
-              onCheckedChange={(checked) => handleChange('paymentNotifications', checked)}
+              onCheckedChange={(checked) =>
+                handleChange("paymentNotifications", checked)
+              }
               disabled={!settings.emailNotifications}
             />
           </div>
@@ -363,7 +417,9 @@ export default function AppSettingsPage() {
             </div>
             <Switch
               checked={settings.customerNotifications}
-              onCheckedChange={(checked) => handleChange('customerNotifications', checked)}
+              onCheckedChange={(checked) =>
+                handleChange("customerNotifications", checked)
+              }
               disabled={!settings.emailNotifications}
             />
           </div>
@@ -382,24 +438,35 @@ export default function AppSettingsPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="freeShippingThreshold">Batas Gratis Ongkir (Rp)</Label>
+              <Label htmlFor="freeShippingThreshold">
+                Batas Gratis Ongkir (Rp)
+              </Label>
               <Input
                 id="freeShippingThreshold"
                 type="number"
                 value={settings.freeShippingThreshold}
-                onChange={(e) => handleChange('freeShippingThreshold', parseInt(e.target.value))}
+                onChange={(e) =>
+                  handleChange(
+                    "freeShippingThreshold",
+                    parseInt(e.target.value),
+                  )
+                }
               />
               <p className="text-xs text-muted-foreground">
                 Pesanan di atas jumlah ini akan mendapatkan gratis ongkir
               </p>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="defaultShippingCost">Ongkos Kirim Default (Rp)</Label>
+              <Label htmlFor="defaultShippingCost">
+                Ongkos Kirim Default (Rp)
+              </Label>
               <Input
                 id="defaultShippingCost"
                 type="number"
                 value={settings.defaultShippingCost}
-                onChange={(e) => handleChange('defaultShippingCost', parseInt(e.target.value))}
+                onChange={(e) =>
+                  handleChange("defaultShippingCost", parseInt(e.target.value))
+                }
               />
               <p className="text-xs text-muted-foreground">
                 Biaya pengiriman default jika tidak memenuhi batas gratis ongkir
@@ -426,7 +493,9 @@ export default function AppSettingsPage() {
               </div>
               <Switch
                 checked={settings.taxEnabled}
-                onCheckedChange={(checked) => handleChange('taxEnabled', checked)}
+                onCheckedChange={(checked) =>
+                  handleChange("taxEnabled", checked)
+                }
               />
             </div>
             <Separator />
@@ -437,7 +506,9 @@ export default function AppSettingsPage() {
                 type="number"
                 step="0.1"
                 value={settings.taxRate}
-                onChange={(e) => handleChange('taxRate', parseFloat(e.target.value))}
+                onChange={(e) =>
+                  handleChange("taxRate", parseFloat(e.target.value))
+                }
                 disabled={!settings.taxEnabled}
               />
               <p className="text-xs text-muted-foreground">
@@ -463,7 +534,7 @@ export default function AppSettingsPage() {
             <Input
               id="metaTitle"
               value={settings.metaTitle}
-              onChange={(e) => handleChange('metaTitle', e.target.value)}
+              onChange={(e) => handleChange("metaTitle", e.target.value)}
               placeholder="Judul untuk SEO"
             />
             <p className="text-xs text-muted-foreground">
@@ -475,12 +546,13 @@ export default function AppSettingsPage() {
             <Textarea
               id="metaDescription"
               value={settings.metaDescription}
-              onChange={(e) => handleChange('metaDescription', e.target.value)}
+              onChange={(e) => handleChange("metaDescription", e.target.value)}
               rows={3}
               placeholder="Deskripsi untuk SEO"
             />
             <p className="text-xs text-muted-foreground">
-              Deskripsi yang akan muncul di hasil pencarian (maksimal 160 karakter)
+              Deskripsi yang akan muncul di hasil pencarian (maksimal 160
+              karakter)
             </p>
           </div>
           <div className="space-y-2">
@@ -488,7 +560,7 @@ export default function AppSettingsPage() {
             <Input
               id="metaKeywords"
               value={settings.metaKeywords}
-              onChange={(e) => handleChange('metaKeywords', e.target.value)}
+              onChange={(e) => handleChange("metaKeywords", e.target.value)}
               placeholder="keyword1, keyword2, keyword3"
             />
             <p className="text-xs text-muted-foreground">
@@ -505,19 +577,24 @@ export default function AppSettingsPage() {
             <Shield className="w-5 h-5 text-orange-600" />
             Mode Maintenance
           </CardTitle>
-          <CardDescription>Aktifkan mode maintenance untuk melakukan maintenance</CardDescription>
+          <CardDescription>
+            Aktifkan mode maintenance untuk melakukan maintenance
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
               <Label>Mode Maintenance</Label>
               <p className="text-sm text-muted-foreground">
-                Aktifkan untuk melakukan maintenance pada sistem. Situs akan tidak dapat diakses oleh pengunjung.
+                Aktifkan untuk melakukan maintenance pada sistem. Situs akan
+                tidak dapat diakses oleh pengunjung.
               </p>
             </div>
             <Switch
               checked={settings.maintenanceMode}
-              onCheckedChange={(checked) => handleChange('maintenanceMode', checked)}
+              onCheckedChange={(checked) =>
+                handleChange("maintenanceMode", checked)
+              }
             />
           </div>
           {settings.maintenanceMode && (
@@ -526,12 +603,15 @@ export default function AppSettingsPage() {
               <Textarea
                 id="maintenanceMessage"
                 value={settings.maintenanceMessage}
-                onChange={(e) => handleChange('maintenanceMessage', e.target.value)}
+                onChange={(e) =>
+                  handleChange("maintenanceMessage", e.target.value)
+                }
                 rows={3}
                 placeholder="Pesan yang akan ditampilkan saat maintenance"
               />
               <p className="text-xs text-muted-foreground">
-                Pesan ini akan ditampilkan kepada pengunjung saat mode maintenance aktif
+                Pesan ini akan ditampilkan kepada pengunjung saat mode
+                maintenance aktif
               </p>
             </div>
           )}
@@ -555,5 +635,5 @@ export default function AppSettingsPage() {
         </Button>
       </div>
     </div>
-  )
+  );
 }

@@ -69,9 +69,10 @@ async function request<T>(
   if (!base) throw new Error('API URL tidak dikonfigurasi')
   const { token, ...init } = options
   const url = `${base.replace(/\/$/, '')}/api${path}`
+  const isFormData = typeof init.body !== 'undefined' && init.body instanceof FormData
   const headers: HeadersInit = {
-    'Content-Type': 'application/json',
     'Accept': 'application/json',
+    ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
     ...(init.headers as Record<string, string>),
   }
   if (token) {
@@ -528,4 +529,147 @@ export async function voucherUpdate(
 export async function voucherDelete(token: string | null, id: string): Promise<void> {
   if (!token) throw new Error('Token diperlukan')
   await authRequest(`/admin/vouchers/${id}`, token, { method: 'DELETE' })
+}
+
+// --- Admin Products ---
+export interface ApiProductImage {
+  id: string
+  url: string
+}
+
+export interface ApiProduct {
+  id: string
+  name: string
+  price: number
+  description: string
+  category: string
+  stock: number
+  supportsCod: boolean
+  isActive: boolean
+  rating: number | null
+  reviews: number | null
+  images: ApiProductImage[]
+}
+
+export async function productsGet(
+  token: string | null,
+  search?: string
+): Promise<ApiProduct[]> {
+  if (!token) return []
+  const q = search?.trim() ? `?search=${encodeURIComponent(search.trim())}` : ''
+  const res = await authRequest<{ data: ApiProduct[] }>(`/admin/products${q}`, token)
+  return res.data ?? []
+}
+
+function buildProductFormData(
+  payload: {
+    name: string
+    price: number
+    description: string
+    category: string
+    stock: number
+    supportsCod?: boolean
+    isActive?: boolean
+    rating?: number
+    reviews?: number
+  },
+  files?: File[]
+): FormData {
+  const fd = new FormData()
+  fd.append('name', payload.name)
+  fd.append('price', String(payload.price))
+  fd.append('description', payload.description)
+  fd.append('category', payload.category)
+  fd.append('stock', String(payload.stock))
+  fd.append('supports_cod', payload.supportsCod !== false ? '1' : '0')
+  fd.append('is_active', payload.isActive !== false ? '1' : '0')
+  if (payload.rating != null) fd.append('rating', String(payload.rating))
+  if (payload.reviews != null) fd.append('reviews', String(payload.reviews))
+  if (files?.length) {
+    files.forEach((f) => fd.append('images[]', f))
+  }
+  return fd
+}
+
+export async function productCreate(
+  token: string | null,
+  payload: {
+    name: string
+    price: number
+    description: string
+    category: string
+    stock: number
+    supportsCod?: boolean
+    isActive?: boolean
+    rating?: number
+    reviews?: number
+  },
+  files?: File[]
+): Promise<ApiProduct> {
+  if (!token) throw new Error('Token diperlukan')
+  const body = files?.length ? buildProductFormData(payload, files) : JSON.stringify({ ...payload, supports_cod: payload.supportsCod !== false, is_active: payload.isActive !== false })
+  const res = await authRequest<{ data: ApiProduct }>('/admin/products', token, {
+    method: 'POST',
+    body: body as BodyInit,
+  })
+  return res.data
+}
+
+export async function productUpdate(
+  token: string | null,
+  id: string,
+  payload: Partial<{
+    name: string
+    price: number
+    description: string
+    category: string
+    stock: number
+    supportsCod: boolean
+    isActive: boolean
+    rating: number
+    reviews: number
+  }>,
+  opts?: { files?: File[]; deleteImageIds?: string[] }
+): Promise<ApiProduct> {
+  if (!token) throw new Error('Token diperlukan')
+  const hasFiles = opts?.files?.length
+  const hasDelete = opts?.deleteImageIds?.length
+  if (hasFiles || hasDelete) {
+    const fd = new FormData()
+    if (payload.name != null) fd.append('name', payload.name)
+    if (payload.price != null) fd.append('price', String(payload.price))
+    if (payload.description != null) fd.append('description', payload.description)
+    if (payload.category != null) fd.append('category', payload.category)
+    if (payload.stock != null) fd.append('stock', String(payload.stock))
+    if (payload.supportsCod !== undefined) fd.append('supports_cod', payload.supportsCod ? '1' : '0')
+    if (payload.isActive !== undefined) fd.append('is_active', payload.isActive ? '1' : '0')
+    if (payload.rating != null) fd.append('rating', String(payload.rating))
+    if (payload.reviews != null) fd.append('reviews', String(payload.reviews))
+    opts?.deleteImageIds?.forEach((id) => fd.append('delete_image_ids[]', id))
+    opts?.files?.forEach((f) => fd.append('images[]', f))
+    const res = await authRequest<{ data: ApiProduct }>(`/admin/products/${id}`, token, {
+      method: 'PUT',
+      body: fd,
+    })
+    return res.data
+  }
+  const jsonPayload: Record<string, unknown> = { ...payload }
+  if (payload?.supportsCod !== undefined) {
+    jsonPayload.supports_cod = payload.supportsCod
+    delete jsonPayload.supportsCod
+  }
+  if (payload?.isActive !== undefined) {
+    jsonPayload.is_active = payload.isActive
+    delete jsonPayload.isActive
+  }
+  const res = await authRequest<{ data: ApiProduct }>(`/admin/products/${id}`, token, {
+    method: 'PUT',
+    body: JSON.stringify(jsonPayload),
+  })
+  return res.data
+}
+
+export async function productDelete(token: string | null, id: string): Promise<void> {
+  if (!token) throw new Error('Token diperlukan')
+  await authRequest(`/admin/products/${id}`, token, { method: 'DELETE' })
 }

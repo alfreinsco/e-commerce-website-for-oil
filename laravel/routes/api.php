@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\AdminAddressController;
 use App\Http\Controllers\Api\AdminAppController;
 use App\Http\Controllers\Api\AdminCustomerController;
 use App\Http\Controllers\Api\AdminPaymentController;
+use App\Http\Controllers\Api\AdminProductController;
 use App\Http\Controllers\Api\AdminVoucherController;
 use Illuminate\Support\Facades\Route;
 
@@ -67,5 +68,11 @@ Route::middleware('cors.api')->group(function () {
         Route::post('/vouchers', [AdminVoucherController::class, 'store']);
         Route::put('/vouchers/{id}', [AdminVoucherController::class, 'update']);
         Route::delete('/vouchers/{id}', [AdminVoucherController::class, 'destroy']);
+
+        // Produk
+        Route::get('/products', [AdminProductController::class, 'index']);
+        Route::post('/products', [AdminProductController::class, 'store']);
+        Route::put('/products/{id}', [AdminProductController::class, 'update']);
+        Route::delete('/products/{id}', [AdminProductController::class, 'destroy']);
     });
 });
