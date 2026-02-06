@@ -382,3 +382,49 @@ export async function paymentUpdateSettings(
   })
   return res.data
 }
+
+// --- App Settings (Admin) ---
+export interface ApiAppSettings {
+  siteName: string
+  siteDescription: string
+  siteTagline: string
+  contactEmail: string
+  contactPhone: string
+  address: string
+  facebookUrl: string
+  instagramUrl: string
+  twitterUrl: string
+  whatsappNumber: string
+  emailNotifications: boolean
+  orderNotifications: boolean
+  lowStockNotifications: boolean
+  paymentNotifications: boolean
+  customerNotifications: boolean
+  freeShippingThreshold: number
+  defaultShippingCost: number
+  taxRate: number
+  taxEnabled: boolean
+  maintenanceMode: boolean
+  maintenanceMessage: string
+  metaTitle: string
+  metaDescription: string
+  metaKeywords: string
+}
+
+export async function appGetSettings(token: string | null): Promise<ApiAppSettings> {
+  if (!token) throw new Error('Token diperlukan')
+  const res = await authRequest<{ data: ApiAppSettings }>('/admin/app/settings', token)
+  return res.data
+}
+
+export async function appUpdateSettings(
+  token: string | null,
+  payload: Partial<ApiAppSettings>
+): Promise<ApiAppSettings> {
+  if (!token) throw new Error('Token diperlukan')
+  const res = await authRequest<{ data: ApiAppSettings }>('/admin/app/settings', token, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+  return res.data
+}

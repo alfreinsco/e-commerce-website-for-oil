@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\AdminAccountController;
 use App\Http\Controllers\Api\AdminAddressController;
+use App\Http\Controllers\Api\AdminAppController;
 use App\Http\Controllers\Api\AdminPaymentController;
 use Illuminate\Support\Facades\Route;
 
@@ -48,6 +49,12 @@ Route::middleware('cors.api')->group(function () {
         Route::prefix('payment')->group(function () {
             Route::get('/settings', [AdminPaymentController::class, 'show']);
             Route::put('/settings', [AdminPaymentController::class, 'update']);
+        });
+
+        // Pengaturan Aplikasi
+        Route::prefix('app')->group(function () {
+            Route::get('/settings', [AdminAppController::class, 'show']);
+            Route::put('/settings', [AdminAppController::class, 'update']);
         });
     });
 });

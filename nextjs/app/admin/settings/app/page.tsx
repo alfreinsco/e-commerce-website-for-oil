@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -8,73 +8,128 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { Separator } from '@/components/ui/separator'
-import { AppWindow, Save, Globe, Bell, Shield, Mail, Phone, Image as ImageIcon, AlertCircle } from 'lucide-react'
+import { Save, Globe, Bell, Shield, AlertCircle, Loader2 } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { getAdminToken, isApiConfigured, appGetSettings, appUpdateSettings } from '@/lib/api'
+
+const initialSettings = {
+  siteName: 'E-Commerce Lamahang',
+  siteDescription: 'Toko online minyak kayu putih premium dari Desa Lamahang',
+  siteTagline: 'Produk Alami untuk Kesehatan Keluarga',
+  contactEmail: 'info@lamahang.com',
+  contactPhone: '+62 812-3456-7890',
+  address: 'Desa Lamahang, Kec. Waplau, Kab. Buru, Maluku',
+  facebookUrl: '',
+  instagramUrl: '',
+  twitterUrl: '',
+  whatsappNumber: '',
+  emailNotifications: true,
+  orderNotifications: true,
+  lowStockNotifications: true,
+  paymentNotifications: true,
+  customerNotifications: false,
+  freeShippingThreshold: 100000,
+  defaultShippingCost: 20000,
+  taxRate: 11,
+  taxEnabled: true,
+  maintenanceMode: false,
+  maintenanceMessage: 'Situs sedang dalam maintenance. Kami akan kembali segera.',
+  metaTitle: 'E-Commerce Lamahang - Minyak Kayu Putih Premium',
+  metaDescription: 'Toko online minyak kayu putih premium dari Desa Lamahang, Kecamatan Waplau, Kabupaten Buru, Maluku',
+  metaKeywords: 'minyak kayu putih, lamahang, produk alami, kesehatan',
+}
 
 export default function AppSettingsPage() {
-  const [settings, setSettings] = useState({
-    // General Settings
-    siteName: 'E-Commerce Lamahang',
-    siteDescription: 'Toko online minyak kayu putih premium dari Desa Lamahang',
-    siteTagline: 'Produk Alami untuk Kesehatan Keluarga',
-    contactEmail: 'info@lamahang.com',
-    contactPhone: '+62 812-3456-7890',
-    address: 'Desa Lamahang, Kec. Waplau, Kab. Buru, Maluku',
-    
-    // Social Media
-    facebookUrl: '',
-    instagramUrl: '',
-    twitterUrl: '',
-    whatsappNumber: '',
-    
-    // Notification Settings
-    emailNotifications: true,
-    orderNotifications: true,
-    lowStockNotifications: true,
-    paymentNotifications: true,
-    customerNotifications: false,
-    
-    // Shipping Settings
-    freeShippingThreshold: 100000,
-    defaultShippingCost: 20000,
-    
-    // Tax Settings
-    taxRate: 11,
-    taxEnabled: true,
-    
-    // Maintenance Mode
-    maintenanceMode: false,
-    maintenanceMessage: 'Situs sedang dalam maintenance. Kami akan kembali segera.',
-    
-    // SEO Settings
-    metaTitle: 'E-Commerce Lamahang - Minyak Kayu Putih Premium',
-    metaDescription: 'Toko online minyak kayu putih premium dari Desa Lamahang, Kecamatan Waplau, Kabupaten Buru, Maluku',
-    metaKeywords: 'minyak kayu putih, lamahang, produk alami, kesehatan',
-  })
+  const [settings, setSettings] = useState(initialSettings)
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
 
-  const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
-
-  useEffect(() => {
-    const storedSettings = localStorage.getItem('admin_settings')
-    if (storedSettings) {
-      try {
-        const parsed = JSON.parse(storedSettings)
-        setSettings((prev) => ({ ...prev, ...parsed }))
-      } catch (error) {
-        console.error('Failed to parse stored settings:', error)
-      }
-    }
+  const mergeFromApi = useCallback((data: Partial<typeof initialSettings>) => {
+    setSettings((prev) => {
+      const next = { ...prev }
+      const keys = Object.keys(initialSettings) as (keyof typeof initialSettings)[]
+      keys.forEach((k) => {
+        if (data[k] !== undefined) {
+          (next as Record<string, unknown>)[k] = data[k]
+        }
+      })
+      return next
+    })
   }, [])
 
-  const handleChange = (key: string, value: any) => {
+  useEffect(() => {
+    if (isApiConfigured() && getAdminToken()) {
+      setLoading(true)
+      appGetSettings(getAdminToken())
+        .then(mergeFromApi)
+        .catch(() => {
+          try {
+            const stored = localStorage.getItem('admin_settings')
+            if (stored) mergeFromApi(JSON.parse(stored))
+          } catch {
+            // ignore
+          }
+        })
+        .finally(() => setLoading(false))
+      return
+    }
+    try {
+      const stored = localStorage.getItem('admin_settings')
+      if (stored) setSettings((prev) => ({ ...prev, ...JSON.parse(stored) }))
+    } catch (error) {
+      console.error('Failed to parse stored settings:', error)
+    }
+    setLoading(false)
+  }, [mergeFromApi])
+
+  const handleChange = (key: string, value: unknown) => {
     setSettings((prev) => ({ ...prev, [key]: value }))
     setMessage(null)
   }
 
-  const handleSave = () => {
-    localStorage.setItem('admin_settings', JSON.stringify(settings))
-    setMessage({ type: 'success', text: 'Pengaturan aplikasi berhasil disimpan!' })
-    setTimeout(() => setMessage(null), 3000)
+  const handleSave = async () => {
+    setMessage(null)
+    if (isApiConfigured() && getAdminToken()) {
+      setSaving(true)
+      try {
+        const num = (v: number, fallback: number) =>
+          typeof v === 'number' && !Number.isNaN(v) ? v : fallback
+        const payload = {
+          ...settings,
+          freeShippingThreshold: num(settings.freeShippingThreshold, 100000),
+          defaultShippingCost: num(settings.defaultShippingCost, 20000),
+          taxRate: num(settings.taxRate, 11),
+        }
+        const updated = await appUpdateSettings(getAdminToken(), payload)
+        mergeFromApi(updated as Partial<typeof initialSettings>)
+        setMessage({ type: 'success', text: 'Pengaturan aplikasi berhasil disimpan!' })
+        setTimeout(() => setMessage(null), 3000)
+      } catch (e) {
+        setMessage({
+          type: 'error',
+          text: e instanceof Error ? e.message : 'Gagal menyimpan pengaturan aplikasi.',
+        })
+      } finally {
+        setSaving(false)
+      }
+      return
+    }
+    try {
+      localStorage.setItem('admin_settings', JSON.stringify(settings))
+      setMessage({ type: 'success', text: 'Pengaturan aplikasi berhasil disimpan!' })
+      setTimeout(() => setMessage(null), 3000)
+    } catch {
+      setMessage({ type: 'error', text: 'Gagal menyimpan ke penyimpanan lokal.' })
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[300px]">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    )
   }
 
   return (
@@ -96,6 +151,22 @@ export default function AppSettingsPage() {
           </AlertDescription>
         </Alert>
       )}
+
+      <div className="flex justify-end">
+        <Button onClick={handleSave} size="lg" disabled={saving}>
+          {saving ? (
+            <>
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              Menyimpan...
+            </>
+          ) : (
+            <>
+              <Save className="w-4 h-4 mr-2" />
+              Simpan Semua Pengaturan
+            </>
+          )}
+        </Button>
+      </div>
 
       {/* General Settings */}
       <Card className="border-0 shadow-sm">
@@ -469,9 +540,18 @@ export default function AppSettingsPage() {
 
       {/* Save Button */}
       <div className="flex justify-end">
-        <Button onClick={handleSave} size="lg">
-          <Save className="w-4 h-4 mr-2" />
-          Simpan Semua Pengaturan
+        <Button onClick={handleSave} size="lg" disabled={saving}>
+          {saving ? (
+            <>
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              Menyimpan...
+            </>
+          ) : (
+            <>
+              <Save className="w-4 h-4 mr-2" />
+              Simpan Semua Pengaturan
+            </>
+          )}
         </Button>
       </div>
     </div>
